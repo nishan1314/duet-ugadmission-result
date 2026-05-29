@@ -92,7 +92,7 @@ export default function AdminDashboardPage() {
         let histVisitors = 0
         let histSearches = 0
         if (historicalStats) {
-          historicalStats.forEach(stat => {
+          historicalStats.forEach((stat: any) => {
             histVisitors += (stat.total_visitors || 0)
             histSearches += (stat.total_searches || 0)
           })
