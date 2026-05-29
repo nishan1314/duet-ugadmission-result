@@ -6,6 +6,7 @@ import './globals.css'
 const nunito = Nunito({ subsets: ["latin"], variable: "--font-nunito" });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://ugar-duet.vercel.app'),
   title: 'Check Result - DUET',
   description: 'Check your admission result - Dhaka University of Engineering & Technology',
   generator: 'v0.app',
