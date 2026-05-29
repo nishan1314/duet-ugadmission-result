@@ -401,7 +401,9 @@ export default function CheckResultPage() {
             <Heart className="w-4 h-4 text-red-500 fill-red-500 animate-pulse inline" />
             <span>by</span>
             <a
-              href="#"
+              href="https://www.linkedin.com/in/dev-nishan108/"
+              target="_blank"
+              rel="noopener noreferrer"
               className="font-bold text-[#006a4e] dark:text-emerald-400 hover:text-[#1a365d] dark:hover:text-emerald-300 transition-colors duration-200 underline decoration-dotted underline-offset-4"
             >
               Nishan
