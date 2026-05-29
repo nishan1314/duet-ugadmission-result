@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       console.log("[AuthContext] Getting session...")
       // Using getSession first is much faster because it uses local storage/cookies
-      const { data: { session }, error: sessionError } = await withTimeout(
+      const { data: { session }, error: sessionError }: any = await withTimeout(
         supabase.auth.getSession(),
         3000,
         { data: { session: null }, error: { message: "supabase.auth.getSession timed out" } as any }

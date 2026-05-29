@@ -147,8 +147,8 @@ export default function CheckResultPage() {
         const { data: resultsData } = await supabase.from("results").select("status").eq("year", latestYear)
         if (resultsData) {
           setStats({
-            selected: resultsData.filter(r => r.status === "Selected").length,
-            waiting: resultsData.filter(r => r.status === "Waiting").length,
+            selected: resultsData.filter((r: any) => r.status === "Selected").length,
+            waiting: resultsData.filter((r: any) => r.status === "Waiting").length,
             total: resultsData.length
           })
         }
