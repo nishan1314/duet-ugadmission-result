@@ -291,7 +291,7 @@ export default function CheckResultPage() {
 
       {/* ── TOP: Info Panel ── */}
       <section className="flex-shrink-0 w-full bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-800">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-row items-center justify-center gap-3 sm:gap-5">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-col sm:flex-row items-center justify-center text-center sm:text-left gap-3 sm:gap-5">
 
           {/* Logo */}
           <div className="relative w-16 h-16 sm:w-24 sm:h-24 flex-shrink-0 drop-shadow-md hover:scale-105 transition-transform duration-300">
@@ -306,10 +306,10 @@ export default function CheckResultPage() {
           </div>
 
           {/* Text Container */}
-          <div className="flex flex-col text-left justify-center">
-            <h1 className="text-lg sm:text-2xl lg:text-3xl font-bold text-[#1a365d] dark:text-zinc-50 leading-tight tracking-tight whitespace-nowrap">
+          <div className="flex flex-col justify-center">
+            <h1 className="text-lg sm:text-2xl lg:text-3xl font-bold text-[#1a365d] dark:text-zinc-50 leading-tight tracking-tight">
               Undergraduate Admission Test Result{" "}
-              <span className="text-[#e53e3e]">— {settings.admission_year}</span>
+              <span className="text-[#e53e3e] whitespace-nowrap">— {settings.admission_year}</span>
             </h1>
             <p className="text-xs sm:text-sm lg:text-base text-[#4a5568] dark:text-zinc-400 font-semibold uppercase tracking-widest mt-1">
               Dhaka University of Engineering &amp; Technology, Gazipur
