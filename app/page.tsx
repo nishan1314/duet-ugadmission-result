@@ -341,7 +341,7 @@ export default function CheckResultPage() {
                   <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-xl flex items-start gap-2 animate-in fade-in duration-200">
                     <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-500 mt-0.5 flex-shrink-0" />
                     <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed font-medium">
-                      Results checking is temporarily suspended by administrative settings. Please check back later.
+                      Result checking has been temporarily disabled by the administration.
                     </p>
                   </div>
                 ) : null}
@@ -472,7 +472,7 @@ export default function CheckResultPage() {
                   <div className="flex items-center justify-between py-2.5">
                     <span className="text-sm font-medium text-[#4a5568] dark:text-zinc-400">Status</span>
                     <span
-                      className="inline-flex items-center gap-1.5 text-sm font-bold px-3 py-1 rounded-full"
+                      className="inline-flex items-center gap-1.5 text-sm font-bold px-3 py-1 rounded-full capitalize"
                       style={{
                         backgroundColor: result.status?.toLowerCase().includes("provisionally selected") ? "#dcfce7" : "#fef3c7",
                         color: result.status?.toLowerCase().includes("provisionally selected") ? "#16a34a" : "#d97706",
