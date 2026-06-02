@@ -18,6 +18,7 @@ export function AdmissionResultUploader() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [year, setYear] = useState<string>("");
+  const [clearExisting, setClearExisting] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -72,6 +73,17 @@ export function AdmissionResultUploader() {
     setUploadError(null);
 
     try {
+      if (clearExisting) {
+        const { error: deleteError } = await supabase
+          .from("results")
+          .delete()
+          .neq("year", -1); // deletes all valid records
+
+        if (deleteError) {
+          throw new Error("Failed to clear old results: " + deleteError.message);
+        }
+      }
+
       const mappedData = parsedData.map((row, idx) => {
         const mappedRow: Record<string, any> = {};
 
@@ -236,6 +248,16 @@ export function AdmissionResultUploader() {
               <div className="flex items-center gap-3">
                 {!saveSuccess ? (
                   <>
+                    <label className="flex items-center gap-2 mr-2 text-sm text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={clearExisting}
+                        onChange={(e) => setClearExisting(e.target.checked)}
+                        disabled={isSaving}
+                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      />
+                      Clear all old results
+                    </label>
                     <button
                       onClick={handleReject}
                       disabled={isSaving}

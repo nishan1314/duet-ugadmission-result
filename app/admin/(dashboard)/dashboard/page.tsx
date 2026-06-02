@@ -9,6 +9,13 @@ import { Calendar } from "@/components/ui/calendar"
 import { createClient } from "@/utils/supabase/client"
 import { toast } from "sonner"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   AreaChart,
   Area,
   XAxis,
@@ -26,6 +33,12 @@ import {
 export default function AdminDashboardPage() {
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [loading, setLoading] = useState(true)
+  
+  const [visitorMonth, setVisitorMonth] = useState<string>("all")
+  const [searchMonth, setSearchMonth] = useState<string>("all")
+  const [visitorLoading, setVisitorLoading] = useState(false)
+  const [searchLoading, setSearchLoading] = useState(false)
+
   const [stats, setStats] = useState({
     uniqueVisitors: 0,
     resultsSearched: 0,
@@ -43,37 +56,6 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     async function loadDashboardData() {
       try {
-        // --- OFFLINE MOCK DASHBOARD DATA ---
-        if (typeof window !== "undefined" && document.cookie.includes("mock_admin_auth=")) {
-          setStats({
-            uniqueVisitors: 1542,
-            resultsSearched: 843,
-            selectedCandidates: 0,
-            waitingList: 0,
-            totalApplied: 0,
-          })
-          setActivityData([
-            { day: "Sun", searches: 40, visitors: 120 },
-            { day: "Mon", searches: 80, visitors: 250 },
-            { day: "Tue", searches: 65, visitors: 190 },
-            { day: "Wed", searches: 120, visitors: 300 },
-            { day: "Thu", searches: 90, visitors: 220 },
-            { day: "Fri", searches: 45, visitors: 110 },
-            { day: "Sat", searches: 150, visitors: 352 },
-          ])
-          setDeptData([
-            { name: "CSE", value: 450, color: "#006a4e" },
-            { name: "EEE", value: 200, color: "#1a365d" },
-            { name: "ME", value: 120, color: "#319795" },
-            { name: "CE", value: 50, color: "#d69e2e" },
-            { name: "TEXTILE", value: 23, color: "#b7791f" },
-          ])
-          setRecentActions([
-            { title: "Successful result check", desc: "Result ID: X89F2A", color: "bg-[#006a4e]", time: "Just now" },
-            { title: "Dashboard Initialized", desc: "Offline Mock Mode activated.", color: "bg-blue-500", time: "1m ago" },
-          ])
-          return
-        }
         // -----------------------------------
 
         // 1. Fetch total unique visitors count from active logs
@@ -248,6 +230,71 @@ export default function AdminDashboardPage() {
     loadDashboardData()
   }, [])
 
+  async function fetchVisitorStats(month: string) {
+    setVisitorLoading(true)
+    let startDate, endDate, monthYearStr;
+    if (month !== "all") {
+      const currentYear = new Date().getFullYear();
+      const monthInt = parseInt(month, 10);
+      startDate = new Date(currentYear, monthInt - 1, 1).toISOString();
+      endDate = new Date(currentYear, monthInt, 1).toISOString();
+      monthYearStr = `${currentYear}-${monthInt.toString().padStart(2, "0")}`;
+    }
+
+    let visitorsQuery = supabase.from("visitor_logs").select("*", { count: "exact", head: true })
+    if (startDate && endDate) visitorsQuery = visitorsQuery.gte("visit_date", startDate).lt("visit_date", endDate)
+    const { count } = await visitorsQuery
+
+    let historicalQuery = supabase.from("monthly_stats").select("total_visitors")
+    if (monthYearStr) historicalQuery = historicalQuery.eq("month_year", monthYearStr)
+    const { data } = await historicalQuery
+
+    let total = count || 0
+    if (data) data.forEach((d: any) => total += (d.total_visitors || 0))
+
+    setStats(prev => ({ ...prev, uniqueVisitors: total }))
+    setVisitorLoading(false)
+  }
+
+  async function fetchSearchStats(month: string) {
+    setSearchLoading(true)
+    let startDate, endDate, monthYearStr;
+    if (month !== "all") {
+      const currentYear = new Date().getFullYear();
+      const monthInt = parseInt(month, 10);
+      startDate = new Date(currentYear, monthInt - 1, 1).toISOString();
+      endDate = new Date(currentYear, monthInt, 1).toISOString();
+      monthYearStr = `${currentYear}-${monthInt.toString().padStart(2, "0")}`;
+    }
+
+    let searchesQuery = supabase.from("search_logs").select("*", { count: "exact", head: true })
+    if (startDate && endDate) searchesQuery = searchesQuery.gte("searched_at", startDate).lt("searched_at", endDate)
+    const { count } = await searchesQuery
+
+    let historicalQuery = supabase.from("monthly_stats").select("total_searches")
+    if (monthYearStr) historicalQuery = historicalQuery.eq("month_year", monthYearStr)
+    const { data } = await historicalQuery
+
+    let total = count || 0
+    if (data) data.forEach((d: any) => total += (d.total_searches || 0))
+    
+    // update deptData as well
+    let deptSearchesQuery = supabase.from("search_logs").select("department").not("department", "is", null)
+    if (startDate && endDate) deptSearchesQuery = deptSearchesQuery.gte("searched_at", startDate).lt("searched_at", endDate)
+    const { data: deptSearches } = await deptSearchesQuery
+
+    const depts = ["CSE", "EEE", "ME", "CE", "TEXTILE"]
+    const colors = ["#006a4e", "#1a365d", "#319795", "#d69e2e", "#b7791f"]
+    const deptMap = depts.map((dept, index) => {
+      const deptCount = deptSearches?.filter((s: any) => s.department?.toUpperCase().includes(dept)).length || 0
+      return { name: dept, value: deptCount, color: colors[index] }
+    })
+
+    setDeptData(deptMap)
+    setStats(prev => ({ ...prev, resultsSearched: total }))
+    setSearchLoading(false)
+  }
+
   // Helper function to format time ago
   function formatTimeAgo(date: Date) {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000)
@@ -284,18 +331,62 @@ export default function AdminDashboardPage() {
       {/* Stats Section */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
-          title="Total Visitors (Unique)"
-          value={stats.uniqueVisitors.toLocaleString()}
+          title="Total Visitors"
+          value={visitorLoading ? "..." : stats.uniqueVisitors.toLocaleString()}
           icon={Users}
           iconColor="text-blue-500"
           iconBg="bg-blue-50 dark:bg-blue-950/20"
+          action={
+            <Select value={visitorMonth} onValueChange={(val) => { setVisitorMonth(val); fetchVisitorStats(val); }}>
+              <SelectTrigger className="h-7 w-[90px] text-xs">
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="1">Jan</SelectItem>
+                <SelectItem value="2">Feb</SelectItem>
+                <SelectItem value="3">Mar</SelectItem>
+                <SelectItem value="4">Apr</SelectItem>
+                <SelectItem value="5">May</SelectItem>
+                <SelectItem value="6">Jun</SelectItem>
+                <SelectItem value="7">Jul</SelectItem>
+                <SelectItem value="8">Aug</SelectItem>
+                <SelectItem value="9">Sep</SelectItem>
+                <SelectItem value="10">Oct</SelectItem>
+                <SelectItem value="11">Nov</SelectItem>
+                <SelectItem value="12">Dec</SelectItem>
+              </SelectContent>
+            </Select>
+          }
         />
         <StatCard
           title="Results Searched"
-          value={stats.resultsSearched.toLocaleString()}
+          value={searchLoading ? "..." : stats.resultsSearched.toLocaleString()}
           icon={Search}
           iconColor="text-emerald-500"
           iconBg="bg-emerald-50 dark:bg-emerald-950/20"
+          action={
+            <Select value={searchMonth} onValueChange={(val) => { setSearchMonth(val); fetchSearchStats(val); }}>
+              <SelectTrigger className="h-7 w-[90px] text-xs">
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="1">Jan</SelectItem>
+                <SelectItem value="2">Feb</SelectItem>
+                <SelectItem value="3">Mar</SelectItem>
+                <SelectItem value="4">Apr</SelectItem>
+                <SelectItem value="5">May</SelectItem>
+                <SelectItem value="6">Jun</SelectItem>
+                <SelectItem value="7">Jul</SelectItem>
+                <SelectItem value="8">Aug</SelectItem>
+                <SelectItem value="9">Sep</SelectItem>
+                <SelectItem value="10">Oct</SelectItem>
+                <SelectItem value="11">Nov</SelectItem>
+                <SelectItem value="12">Dec</SelectItem>
+              </SelectContent>
+            </Select>
+          }
         />
         <StatCard
           title="Provisionally Selected"
