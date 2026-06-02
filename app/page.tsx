@@ -2,61 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 
-const MarqueeText = ({ children }: { children: React.ReactNode }) => {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
-  const [contentWidth, setContentWidth] = useState(0)
-  const [containerWidth, setContainerWidth] = useState(0)
-
-  useEffect(() => {
-    const updateWidths = () => {
-      if (contentRef.current) {
-        setContentWidth(contentRef.current.offsetWidth)
-      }
-      if (containerRef.current) {
-        setContainerWidth(containerRef.current.offsetWidth)
-      }
-    }
-    
-    // Slight delay to ensure fonts/content are fully rendered
-    const timeout = setTimeout(updateWidths, 100)
-    window.addEventListener("resize", updateWidths)
-    return () => {
-      clearTimeout(timeout)
-      window.removeEventListener("resize", updateWidths)
-    }
-  }, [children])
-
-  // Speed: pixels per second (adjustable here, e.g. 50 is a smooth reading speed)
-  const speed = 50 
-  // We need to translate by exactly 1 contentWidth
-  const duration = contentWidth > 0 ? contentWidth / speed : 18
-
-  // To ensure the screen is always filled, we need duplicates
-  // At least 2 to loop, more if the content is smaller than the screen
-  const duplicates = contentWidth > 0 && containerWidth > 0 
-    ? Math.max(2, Math.ceil(containerWidth / contentWidth) + 1) 
-    : 2
-
-  return (
-    <div ref={containerRef} className="flex overflow-hidden w-full relative flex-1">
-      {Array.from({ length: duplicates }).map((_, i) => (
-        <div 
-          key={i}
-          ref={i === 0 ? contentRef : null}
-          className="flex shrink-0 items-center pr-12 animate-marquee-linear"
-          style={{
-            animationDuration: `${duration}s`,
-            transform: 'translateZ(0)' // Hardware acceleration
-          }}
-          aria-hidden={i !== 0}
-        >
-          {children}
-        </div>
-      ))}
-    </div>
-  )
-}
+import Marquee from "react-fast-marquee"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -290,12 +236,12 @@ export default function CheckResultPage() {
           </div>
           
           <div className="flex-1 overflow-hidden relative flex items-center pl-24">
-            <MarqueeText>
-              <span className="inline-flex items-center gap-6">
+            <Marquee speed={45} gradient={false} pauseOnHover={true} className="overflow-hidden">
+              <span className="inline-flex items-center gap-6 pr-6">
                 {settings.show_stats_in_banner && (
-                  <span className="inline-flex items-center gap-6 mr-6">
-                    <span className="flex items-center gap-2 bg-[#006a4e]/10 dark:bg-emerald-950/30 px-3 py-1 rounded-full">
-                      <span className="font-bold text-[#006a4e] dark:text-emerald-400 uppercase tracking-wide text-xs">Admission {settings.admission_year}</span>
+                  <span className="inline-flex items-center gap-6 mr-2">
+                    <span className="flex items-center gap-2 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/30 px-3 py-1 rounded-full">
+                      <span className="font-bold text-red-600 dark:text-red-400 uppercase tracking-wide text-xs">Admission {settings.admission_year}</span>
                     </span>
                     <span className="flex items-center gap-2">
                       <span className="text-green-600 dark:text-green-400">Provisionally Selected:</span>
@@ -320,7 +266,7 @@ export default function CheckResultPage() {
                   </span>
                 ))}
               </span>
-            </MarqueeText>
+            </Marquee>
           </div>
         </div>
       )}

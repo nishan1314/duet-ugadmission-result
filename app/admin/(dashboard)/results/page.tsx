@@ -60,7 +60,7 @@ export default function AdminResultsPage() {
   // Yearly Candidate Totals state
   const [yearlyTotals, setYearlyTotals] = useState<YearlyCandidateTotal[]>([])
   const [yearlyLoading, setYearlyLoading] = useState(true)
-  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editingYear, setEditingYear] = useState<number | null>(null)
   const [editYear, setEditYear] = useState("")
   const [editTotal, setEditTotal] = useState("")
   const [addMode, setAddMode] = useState(false)
@@ -205,13 +205,13 @@ export default function AdminResultsPage() {
   }
 
   const handleEditStart = (item: YearlyCandidateTotal) => {
-    setEditingId(item.id)
+    setEditingYear(item.year)
     setEditYear(item.year.toString())
     setEditTotal(item.total_candidates.toString())
   }
 
   const handleEditSave = async () => {
-    if (editingId === null) return
+    if (editingYear === null) return
     const year = parseInt(editYear)
     const total = parseInt(editTotal)
     if (!year || !total || total < 0) {
@@ -222,14 +222,14 @@ export default function AdminResultsPage() {
       const { error } = await supabase
         .from("yearly_candidate_totals")
         .update({ year, total_candidates: total })
-        .eq("id", editingId)
+        .eq("year", editingYear)
       if (error) throw error
       setYearlyTotals((prev) =>
         prev.map((item) =>
-          item.id === editingId ? { ...item, year, total_candidates: total } : item
+          item.year === editingYear ? { ...item, year, total_candidates: total } : item
         ).sort((a, b) => b.year - a.year)
       )
-      setEditingId(null)
+      setEditingYear(null)
       toast.success(`Updated entry for year ${year}.`)
     } catch (e: any) {
       toast.error(e?.message || "Failed to update entry.")
@@ -241,9 +241,9 @@ export default function AdminResultsPage() {
       const { error } = await supabase
         .from("yearly_candidate_totals")
         .delete()
-        .eq("id", item.id)
+        .eq("year", item.year)
       if (error) throw error
-      setYearlyTotals((prev) => prev.filter((t) => t.id !== item.id))
+      setYearlyTotals((prev) => prev.filter((t) => t.year !== item.year))
       toast.success(`Deleted entry for year ${item.year}.`)
     } catch (e: any) {
       toast.error(e?.message || "Failed to delete entry.")
@@ -310,30 +310,30 @@ export default function AdminResultsPage() {
       {/* Results Table */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-100 dark:border-zinc-800 shadow-sm">
         <Table>
-          <TableHeader className="bg-zinc-50/50 dark:bg-zinc-900/50">
-            <TableRow>
-              <TableHead onClick={() => toggleSort("sl")} className="font-bold text-[#1a365d] dark:text-zinc-200 cursor-pointer select-none">
-                <div className="flex items-center gap-1">
+          <TableHeader className="bg-zinc-50/80 dark:bg-zinc-900/80 backdrop-blur-sm sticky top-0 z-10 border-b border-zinc-100 dark:border-zinc-800">
+            <TableRow className="hover:bg-transparent">
+              <TableHead onClick={() => toggleSort("sl")} className="text-xs font-bold text-[#4a5568] dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none">
+                <div className="flex items-center gap-1.5 hover:text-[#1a365d] dark:hover:text-zinc-200 transition-colors">
                   SL
-                  <ArrowUpDown className="w-3.5 h-3.5 opacity-65" />
+                  <ArrowUpDown className="w-3.5 h-3.5 opacity-50" />
                 </div>
               </TableHead>
-              <TableHead onClick={() => toggleSort("applicant_id")} className="font-bold text-[#1a365d] dark:text-zinc-200 cursor-pointer select-none">
-                <div className="flex items-center gap-1">
+              <TableHead onClick={() => toggleSort("applicant_id")} className="text-xs font-bold text-[#4a5568] dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none">
+                <div className="flex items-center gap-1.5 hover:text-[#1a365d] dark:hover:text-zinc-200 transition-colors">
                   Applicant ID
-                  <ArrowUpDown className="w-3.5 h-3.5 opacity-65" />
+                  <ArrowUpDown className="w-3.5 h-3.5 opacity-50" />
                 </div>
               </TableHead>
-              <TableHead onClick={() => toggleSort("applicant_name")} className="font-bold text-[#1a365d] dark:text-zinc-200 cursor-pointer select-none">
-                <div className="flex items-center gap-1">
+              <TableHead onClick={() => toggleSort("applicant_name")} className="text-xs font-bold text-[#4a5568] dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none">
+                <div className="flex items-center gap-1.5 hover:text-[#1a365d] dark:hover:text-zinc-200 transition-colors">
                   Applicant Name
-                  <ArrowUpDown className="w-3.5 h-3.5 opacity-65" />
+                  <ArrowUpDown className="w-3.5 h-3.5 opacity-50" />
                 </div>
               </TableHead>
-              <TableHead className="font-bold text-[#1a365d] dark:text-zinc-200">Father's Name</TableHead>
-              <TableHead className="font-bold text-[#1a365d] dark:text-zinc-200">Department</TableHead>
-              <TableHead className="font-bold text-[#1a365d] dark:text-zinc-200">Year</TableHead>
-              <TableHead className="font-bold text-[#1a365d] dark:text-zinc-200">Status</TableHead>
+              <TableHead className="text-xs font-bold text-[#4a5568] dark:text-zinc-400 uppercase tracking-wider">Father's Name</TableHead>
+              <TableHead className="text-xs font-bold text-[#4a5568] dark:text-zinc-400 uppercase tracking-wider">Department</TableHead>
+              <TableHead className="text-xs font-bold text-[#4a5568] dark:text-zinc-400 uppercase tracking-wider">Year</TableHead>
+              <TableHead className="text-xs font-bold text-[#4a5568] dark:text-zinc-400 uppercase tracking-wider">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -345,18 +345,31 @@ export default function AdminResultsPage() {
               </TableRow>
             ) : paginatedResults.length > 0 ? (
               paginatedResults.map((row) => (
-                <TableRow key={row.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-950/20">
-                  <TableCell className="font-mono text-[#1a365d] dark:text-zinc-50">{row.sl}</TableCell>
-                  <TableCell className="font-mono font-bold text-[#1a365d] dark:text-zinc-50">{row.applicant_id}</TableCell>
-                  <TableCell className="font-semibold text-[#1a365d] dark:text-zinc-50">{row.applicant_name}</TableCell>
-                  <TableCell className="text-[#4a5568] dark:text-zinc-400 text-sm">{row.fathers_name}</TableCell>
-                  <TableCell className="text-[#4a5568] dark:text-zinc-400 text-sm">{row.department}</TableCell>
-                  <TableCell className="text-[#4a5568] dark:text-zinc-400 text-sm">{row.year}</TableCell>
+                <TableRow key={row.id} className="hover:bg-blue-50/40 dark:hover:bg-blue-900/10 group transition-colors duration-200 border-b border-zinc-100 dark:border-zinc-800/60">
+                  <TableCell className="font-mono text-xs text-zinc-400 dark:text-zinc-500 pl-4">{row.sl}</TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800/80 font-mono text-sm font-bold text-[#1a365d] dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-700/50 shadow-sm group-hover:border-[#006a4e]/30 group-hover:bg-[#006a4e]/5 transition-colors">
+                      {row.applicant_id}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-bold text-[#1a365d] dark:text-zinc-100 tracking-tight">
+                      {row.applicant_name}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-[#4a5568] dark:text-zinc-400 text-sm font-medium">{row.fathers_name}</TableCell>
+                  <TableCell>
+                    <span className="text-[#4a5568] dark:text-zinc-300 text-xs font-semibold px-2 py-1 bg-zinc-50 dark:bg-zinc-800 rounded border border-zinc-100 dark:border-zinc-700">
+                      {row.department}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-[#4a5568] dark:text-zinc-400 text-sm font-medium">{row.year}</TableCell>
                   <TableCell>
                     <span
-                      className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full shadow-sm border border-black/5 dark:border-white/5"
                       style={getStatusBadgeStyle(row.status)}
                     >
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: getStatusBadgeStyle(row.status).color }} />
                       {row.status}
                     </span>
                   </TableCell>
@@ -512,9 +525,9 @@ export default function AdminResultsPage() {
                     </TableCell>
                   </TableRow>
                 ) : yearlyTotals.length > 0 ? (
-                  yearlyTotals.map((item) => (
-                    <TableRow key={item.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-950/20 group">
-                      {editingId === item.id ? (
+                  yearlyTotals.map((item, index) => (
+                    <TableRow key={`yt-${item.year}-${index}`} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-950/20 group">
+                      {editingYear === item.year ? (
                         <>
                           <TableCell>
                             <Input
@@ -545,7 +558,7 @@ export default function AdminResultsPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => setEditingId(null)}
+                                onClick={() => setEditingYear(null)}
                                 className="rounded-lg h-8 px-3 cursor-pointer"
                               >
                                 <X className="w-3.5 h-3.5" />

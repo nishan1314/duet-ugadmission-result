@@ -81,15 +81,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true })
     }
 
-    // Fallback: return instructions to use Supabase dashboard
-    return NextResponse.json(
-      {
-        error:
-          "Service role key not configured. Please add SUPABASE_SERVICE_ROLE_KEY to .env.local to enable admin user creation from the dashboard, or create users directly in the Supabase Auth dashboard.",
-        needsServiceRole: true,
-      },
-      { status: 422 }
+    // Fallback: Use standard signUp if Service Role Key is absent
+    const { createClient: createAnonClient } = await import("@supabase/supabase-js")
+    const anonSupabase = createAnonClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
     )
+
+    const { data, error } = await anonSupabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name, role: "admin" }
+      }
+    })
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    // Upsert profile in admin_users using the authenticated caller's client
+    if (data.user) {
+      await supabase.from("admin_users").upsert({
+        id: data.user.id,
+        name,
+        email,
+        role: "admin",
+      })
+    }
+
+    return NextResponse.json({ success: true })
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "Unexpected error" },
