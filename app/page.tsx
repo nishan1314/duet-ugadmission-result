@@ -7,9 +7,15 @@ import Marquee from "react-fast-marquee"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Search, X, CheckCircle2, Clock, AlertTriangle, Heart } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Search, X, CheckCircle2, Clock, AlertTriangle, Heart, Download, Upload } from "lucide-react"
 import Image from "next/image"
 import { createClient } from "@/utils/supabase/client"
+import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
+import Papa from "papaparse"
 
 type ResultData = {
   applicant_id: string
@@ -30,6 +36,13 @@ export default function CheckResultPage() {
   const [result, setResult] = useState<ResultData>(null)
   const [notFound, setNotFound] = useState(false)
   const [stats, setStats] = useState({ selected: 0, waiting: 0, total: 0 })
+
+  // Group search state
+  const [groupInput, setGroupInput] = useState("")
+  const [isGroupLoading, setIsGroupLoading] = useState(false)
+  const [groupResults, setGroupResults] = useState<NonNullable<ResultData>[]>([])
+  const [showGroupModal, setShowGroupModal] = useState(false)
+  const [groupNotFound, setGroupNotFound] = useState<string[]>([])
 
   // Portal Config Settings State
   const [settings, setSettings] = useState({
@@ -166,6 +179,151 @@ export default function CheckResultPage() {
     setShowModal(false)
     setResult(null)
     setNotFound(false)
+  }
+
+  const performGroupSearch = async (ids: string[]) => {
+    setIsGroupLoading(true)
+    
+    // Premium loading delay
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    
+    try {
+      const { data: foundList, error } = await supabase
+        .from("results")
+        .select("*")
+        .in("applicant_id", ids)
+        .eq("year", settings.admission_year)
+        
+      if (foundList && foundList.length > 0) {
+        setGroupResults(foundList)
+        
+        // Find which ones were not found
+        const foundIds = foundList.map(r => r.applicant_id.toString())
+        const notFoundIds = ids.filter(id => !foundIds.includes(id))
+        setGroupNotFound(notFoundIds)
+      } else {
+        setGroupResults([])
+        setGroupNotFound(ids)
+      }
+    } catch (err) {
+      console.error("Error fetching group results:", err)
+      setGroupResults([])
+      setGroupNotFound(ids)
+    }
+
+    setIsGroupLoading(false)
+    setShowGroupModal(true)
+  }
+
+  const handleGroupSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const ids = groupInput.split(',').map(id => id.trim()).filter(id => id !== '')
+    if (ids.length > 0) {
+      await performGroupSearch(ids)
+    }
+  }
+
+  const closeGroupModal = () => {
+    setShowGroupModal(false)
+    setGroupResults([])
+    setGroupNotFound([])
+  }
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: (header) => header.trim().toLowerCase(),
+      complete: (results) => {
+        const data = results.data as any[]
+        const ids = data
+          .map((row) => row.applicant_id || row.applicantid || row.id || row.applicant_id_no)
+          .filter((id) => id !== undefined && id !== null && String(id).trim() !== "")
+          .map((id) => String(id).trim())
+        
+        if (ids.length > 0) {
+          setGroupInput(ids.join(", "))
+          performGroupSearch(ids)
+        } else {
+          // If applicant_id column not found or empty, alert the user or fallback
+          console.error("No valid applicant_id found in CSV. Headers found:", results.meta.fields)
+          alert("Could not find any 'applicant_id' in the uploaded CSV. Please check the column name.")
+        }
+        
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ""
+        }
+      },
+      error: (error) => {
+        console.error("CSV parsing error:", error)
+        alert("Error parsing CSV file.")
+      }
+    })
+  }
+
+  const downloadGroupPDF = () => {
+    const doc = new jsPDF()
+    
+    doc.setFontSize(18)
+    doc.text(`Undergraduate Admission Result - ${settings.admission_year}`, 14, 22)
+    doc.setFontSize(11)
+    doc.setTextColor(100, 100, 100)
+    doc.text(`Group Wise Result | DUET`, 14, 30)
+    
+    let selectedCount = 0;
+    let waitingCount = 0;
+    groupResults.forEach(r => {
+      if (r.status?.toLowerCase().includes("provisionally selected")) {
+        selectedCount++;
+      } else if (r.status?.toLowerCase().includes("waiting")) {
+        waitingCount++;
+      }
+    });
+
+    doc.setFontSize(10)
+    doc.setFont("helvetica", "bold")
+    
+    doc.setTextColor(0, 0, 0)
+    doc.text(`Total Found: ${groupResults.length}`, 14, 38)
+    
+    doc.setTextColor(22, 163, 74) // Green
+    doc.text(`Selected: ${selectedCount}`, 60, 38)
+    
+    doc.setTextColor(217, 119, 6) // Amber
+    doc.text(`Waiting: ${waitingCount}`, 100, 38)
+    
+    doc.setTextColor(0, 0, 0) // Reset
+    doc.setFont("helvetica", "normal")
+    
+    const tableColumn = ["Applicant ID", "Name", "Department", "Status"]
+    const tableRows: any[] = []
+    
+    groupResults.forEach(res => {
+      const rowData = [
+        res.applicant_id,
+        res.applicant_name,
+        res.department,
+        res.status
+      ]
+      tableRows.push(rowData)
+    })
+    
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 45,
+      theme: 'grid',
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [0, 106, 78] }
+    })
+    
+    doc.save(`duet_group_results_${settings.admission_year}.pdf`)
   }
 
   // ── Render Full Site Loading Screen ──
@@ -307,7 +465,7 @@ export default function CheckResultPage() {
 
 
         {/* Form Card */}
-        <div className="w-full max-w-md sm:max-w-lg">
+        <div className="w-full max-w-md sm:max-w-lg lg:max-w-xl">
           <div className="bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden shadow-[0_4px_28px_rgba(0,106,78,0.11)] border-t-4 border-t-[#006a4e]">
             <div className="px-8 sm:px-10 py-8 sm:py-10">
               <div className="mb-6 text-center">
@@ -315,60 +473,128 @@ export default function CheckResultPage() {
                   Check Result
                 </h2>
               </div>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="applicantId" className="text-base font-semibold text-[#1a365d] dark:text-zinc-300">
-                    Applicant ID
-                  </Label>
-                  <div className="relative">
-                    <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#4a5568] dark:text-zinc-400" />
-                    <Input
-                      id="applicantId"
-                      type="number"
-                      inputMode="numeric"
-                      placeholder="e.g. 10001"
-                      className="pl-12 h-12 rounded-xl border-zinc-200 dark:border-zinc-700 bg-[#f7fafc] dark:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-[#006a4e] text-base sm:text-lg text-[#1a365d] dark:text-zinc-50 placeholder:text-zinc-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      required
-                      min={1}
-                      value={applicantId}
-                      onChange={(e) => setApplicantId(e.target.value)}
-                    />
-                  </div>
-                </div>
+              
+              <Tabs defaultValue="individual" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-8 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl h-auto">
+                  <TabsTrigger value="individual" className="rounded-lg py-2.5 text-sm font-semibold">Individual</TabsTrigger>
+                  <TabsTrigger value="group" className="rounded-lg py-2.5 text-sm font-semibold">Group (Multiple)</TabsTrigger>
+                </TabsList>
                 
-                {/* Result check status check */}
-                {!settings.result_published ? (
-                  <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-xl flex items-start gap-2 animate-in fade-in duration-200">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed font-medium">
-                      Result checking has been temporarily disabled by the administration.
-                    </p>
-                  </div>
-                ) : null}
+                <TabsContent value="individual" className="mt-0">
+                  <div className="h-[200px] flex flex-col justify-center">
+                    <form onSubmit={handleSubmit} className="space-y-6 w-full">
+                      <div className="space-y-2">
+                        <Label htmlFor="applicantId" className="text-base font-semibold text-[#1a365d] dark:text-zinc-300">
+                          Applicant ID
+                        </Label>
+                        <div className="relative">
+                          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#4a5568] dark:text-zinc-400" />
+                          <Input
+                            id="applicantId"
+                            type="number"
+                            inputMode="numeric"
+                            placeholder="e.g. 10001"
+                            className="pl-12 h-12 rounded-xl border-zinc-200 dark:border-zinc-700 bg-[#f7fafc] dark:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-[#006a4e] text-base sm:text-lg text-[#1a365d] dark:text-zinc-50 placeholder:text-zinc-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            required
+                            min={1}
+                            value={applicantId}
+                            onChange={(e) => setApplicantId(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Result check status check */}
+                      {!settings.result_published ? (
+                        <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-xl flex items-start gap-2 animate-in fade-in duration-200">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-500 mt-0.5 flex-shrink-0" />
+                          <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed font-medium">
+                            Result checking has been temporarily disabled by the administration.
+                          </p>
+                        </div>
+                      ) : null}
 
-                <div className="flex justify-center pt-2">
-                  <Button
-                    type="submit"
-                    className="w-1/2 h-12 rounded-xl font-semibold text-base tracking-wide transition-all duration-200 shadow hover:shadow-md cursor-pointer"
-                    style={{
-                      backgroundColor: applicantId.trim() && !isLoading && settings.result_published ? "#006a4e" : undefined,
-                    }}
-                    disabled={isLoading || !applicantId.trim() || !settings.result_published}
-                  >
-                    {isLoading ? (
-                      <span className="flex items-center gap-2">
-                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                        Checking...
-                      </span>
-                    ) : (
-                      "Check"
-                    )}
-                  </Button>
-                </div>
-              </form>
+                      <div className="flex justify-center pt-2">
+                        <Button
+                          type="submit"
+                          className="w-full sm:w-1/2 h-12 rounded-xl font-semibold text-base tracking-wide transition-all duration-200 shadow hover:shadow-md cursor-pointer"
+                          style={{
+                            backgroundColor: applicantId.trim() && !isLoading && settings.result_published ? "#006a4e" : undefined,
+                          }}
+                          disabled={isLoading || !applicantId.trim() || !settings.result_published}
+                        >
+                          {isLoading ? (
+                            <span className="flex items-center gap-2">
+                              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                              </svg>
+                              Checking...
+                            </span>
+                          ) : (
+                            "Check"
+                          )}
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="group" className="mt-0">
+                  <div className="h-[200px] flex flex-col justify-center">
+                    <form onSubmit={handleGroupSubmit} className="space-y-6 w-full">
+                      <div className="space-y-2">
+                        <Label className="text-base font-semibold text-[#1a365d] dark:text-zinc-300">
+                          Upload Applicant IDs (CSV)
+                        </Label>
+                        
+                        <div 
+                          className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center transition-colors cursor-pointer ${isGroupLoading ? 'border-[#006a4e] bg-[#e6f0ed] dark:bg-[#006a4e]/10' : 'border-zinc-300 dark:border-zinc-700 bg-[#f7fafc] dark:bg-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
+                          onClick={() => { if (!isGroupLoading) fileInputRef.current?.click() }}
+                        >
+                          {isGroupLoading ? (
+                             <div className="flex flex-col items-center justify-center">
+                                <svg className="animate-spin h-8 w-8 text-[#006a4e] mb-3" viewBox="0 0 24 24" fill="none">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                </svg>
+                                <p className="text-sm font-medium text-[#1a365d] dark:text-zinc-200">Searching Group Results...</p>
+                             </div>
+                          ) : (
+                             <>
+                               <Upload className="w-8 h-8 text-zinc-400 mb-3" />
+                               <p className="text-sm font-medium text-[#1a365d] dark:text-zinc-200 mb-1">Click to select CSV file</p>
+                               <p className="text-xs text-zinc-500 dark:text-zinc-400 text-center">
+                                 File must contain `applicant_id` column.<br/>
+                                 {groupInput ? <span className="text-[#006a4e] dark:text-emerald-400 font-semibold mt-2 block">{groupInput.split(',').length} IDs loaded and ready to search.</span> : null}
+                               </p>
+                               <input 
+                                 type="file" 
+                                 accept=".csv" 
+                                 ref={fileInputRef} 
+                                 style={{ display: 'none' }} 
+                                 onChange={handleFileUpload}
+                               />
+                             </>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {!settings.result_published ? (
+                        <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-xl flex items-start gap-2 animate-in fade-in duration-200">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-500 mt-0.5 flex-shrink-0" />
+                          <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed font-medium">
+                            Result checking has been temporarily disabled by the administration.
+                          </p>
+                        </div>
+                      ) : null}
+
+                      <div className="flex justify-center pt-2">
+                        {/* Search button removed because it auto-searches on upload */}
+                      </div>
+                    </form>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
           </div>
         </div>
@@ -524,6 +750,117 @@ export default function CheckResultPage() {
                 </div>
               </>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* ── GROUP RESULT MODAL ── */}
+      {showGroupModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 py-6 sm:py-10 animate-in fade-in duration-200"
+          onClick={closeGroupModal}
+        >
+          <div
+            className="relative w-full max-w-4xl max-h-full flex flex-col bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 fade-in duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={closeGroupModal}
+              className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+            >
+              <X className="w-4 h-4 text-zinc-500" />
+            </button>
+
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-8 sm:mt-0">
+              <div>
+                <h3 className="text-xl font-bold text-[#1a365d] dark:text-zinc-50">
+                  Group Admission Results
+                </h3>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                  Found {groupResults.length} result(s)
+                </p>
+              </div>
+              {groupResults.length > 0 && (
+                <Button 
+                  onClick={downloadGroupPDF}
+                  className="bg-[#006a4e] hover:bg-[#005a40] text-white flex items-center gap-2 h-10 rounded-xl px-4 shrink-0"
+                >
+                  <Download className="w-4 h-4" />
+                  Download PDF
+                </Button>
+              )}
+            </div>
+
+            {/* Content: Table */}
+            <div className="flex-1 overflow-auto p-6 bg-zinc-50/50 dark:bg-zinc-950/50">
+              {groupResults.length > 0 ? (
+                <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-white dark:bg-zinc-900 shadow-sm">
+                  <Table>
+                    <TableHeader className="bg-zinc-100/50 dark:bg-zinc-800/50">
+                      <TableRow>
+                        <TableHead className="font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">ID</TableHead>
+                        <TableHead className="font-semibold text-zinc-700 dark:text-zinc-300 min-w-[150px]">Name</TableHead>
+                        <TableHead className="font-semibold text-zinc-700 dark:text-zinc-300">Department</TableHead>
+                        <TableHead className="font-semibold text-zinc-700 dark:text-zinc-300">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {groupResults.map((res, idx) => (
+                        <TableRow key={idx} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 border-b-zinc-100 dark:border-b-zinc-800/50">
+                          <TableCell className="font-medium text-[#1a365d] dark:text-zinc-200 py-3">{res.applicant_id}</TableCell>
+                          <TableCell className="py-3">{res.applicant_name}</TableCell>
+                          <TableCell className="py-3">{res.department}</TableCell>
+                          <TableCell className="py-3">
+                            <span
+                              className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-0.5 rounded-full capitalize whitespace-nowrap"
+                              style={{
+                                backgroundColor: res.status?.toLowerCase().includes("provisionally selected") ? "#dcfce7" : "#fef3c7",
+                                color: res.status?.toLowerCase().includes("provisionally selected") ? "#16a34a" : "#d97706",
+                              }}
+                            >
+                              {res.status}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center h-full min-h-[200px]">
+                  <AlertTriangle className="w-12 h-12 text-zinc-300 dark:text-zinc-700 mb-4" />
+                  <p className="text-lg font-medium text-zinc-900 dark:text-zinc-100">No results found</p>
+                  <p className="text-zinc-500 dark:text-zinc-400 mt-1 max-w-sm mx-auto">
+                    We couldn't find any results for the provided Applicant IDs.
+                  </p>
+                </div>
+              )}
+              
+              {groupNotFound.length > 0 && (
+                <div className="mt-6 p-4 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 rounded-xl">
+                  <h4 className="text-sm font-semibold text-red-800 dark:text-red-400 mb-2 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" />
+                    IDs not found ({groupNotFound.length})
+                  </h4>
+                  <p className="text-xs text-red-600 dark:text-red-500 leading-relaxed break-words">
+                    {groupNotFound.join(", ")}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
+              <Button
+                onClick={closeGroupModal}
+                variant="outline"
+                className="w-full h-11 rounded-xl font-semibold text-sm tracking-wide bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
+              >
+                Close
+              </Button>
+            </div>
           </div>
         </div>
       )}
