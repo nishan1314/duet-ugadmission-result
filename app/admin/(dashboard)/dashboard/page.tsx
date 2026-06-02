@@ -31,6 +31,7 @@ export default function AdminDashboardPage() {
     resultsSearched: 0,
     selectedCandidates: 0,
     waitingList: 0,
+    totalApplied: 0,
   })
 
   const [activityData, setActivityData] = useState<any[]>([])
@@ -49,6 +50,7 @@ export default function AdminDashboardPage() {
             resultsSearched: 843,
             selectedCandidates: 0,
             waitingList: 0,
+            totalApplied: 0,
           })
           setActivityData([
             { day: "Sun", searches: 40, visitors: 120 },
@@ -108,18 +110,37 @@ export default function AdminDashboardPage() {
         const { count: selectedCount } = await supabase
           .from("results")
           .select("*", { count: "exact", head: true })
-          .eq("status", "Selected")
+          .ilike("status", "%provisionally selected%")
 
         const { count: waitingCount } = await supabase
           .from("results")
           .select("*", { count: "exact", head: true })
-          .eq("status", "Waiting")
+          .ilike("status", "%waiting%")
+
+        // Fetch total applied candidates from yearly_candidate_totals for the latest year
+        const { data: maxYearData } = await supabase
+          .from("results")
+          .select("year")
+          .order("year", { ascending: false })
+          .limit(1)
+        const latestYear = maxYearData?.[0]?.year
+
+        let totalApplied = 0
+        if (latestYear) {
+          const { data: totalData } = await supabase
+            .from("yearly_candidate_totals")
+            .select("total_candidates")
+            .eq("year", latestYear)
+            .single()
+          totalApplied = totalData?.total_candidates || 0
+        }
 
         setStats({
           uniqueVisitors: visitorsCount || 0,
           resultsSearched: searchesCount || 0,
           selectedCandidates: selectedCount || 0,
           waitingList: waitingCount || 0,
+          totalApplied,
         })
 
         // 3. Generate last 7 days calendar range
@@ -261,7 +282,7 @@ export default function AdminDashboardPage() {
       />
 
       {/* Stats Section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           title="Total Visitors (Unique)"
           value={stats.uniqueVisitors.toLocaleString()}
@@ -277,18 +298,25 @@ export default function AdminDashboardPage() {
           iconBg="bg-emerald-50 dark:bg-emerald-950/20"
         />
         <StatCard
-          title="Selected Candidates"
-          value={stats.selectedCandidates.toString()}
+          title="Provisionally Selected"
+          value={stats.selectedCandidates.toLocaleString()}
           icon={CheckCircle2}
           iconColor="text-green-600"
           iconBg="bg-green-50 dark:bg-green-950/20"
         />
         <StatCard
           title="Waiting List"
-          value={stats.waitingList.toString()}
+          value={stats.waitingList.toLocaleString()}
           icon={Clock}
           iconColor="text-amber-500"
           iconBg="bg-amber-50 dark:bg-amber-950/20"
+        />
+        <StatCard
+          title="Total Candidates Applied"
+          value={stats.totalApplied.toLocaleString()}
+          icon={TrendingUp}
+          iconColor="text-indigo-500"
+          iconBg="bg-indigo-50 dark:bg-indigo-950/20"
         />
       </div>
 

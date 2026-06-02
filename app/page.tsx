@@ -145,11 +145,19 @@ export default function CheckResultPage() {
 
         // Fetch dynamic stats for banner using the latest year
         const { data: resultsData } = await supabase.from("results").select("status").eq("year", latestYear)
+        
+        // Fetch total applied candidates from yearly_candidate_totals
+        const { data: totalData } = await supabase
+          .from("yearly_candidate_totals")
+          .select("total_candidates")
+          .eq("year", latestYear)
+          .single()
+
         if (resultsData) {
           setStats({
-            selected: resultsData.filter((r: any) => r.status === "Selected").length,
-            waiting: resultsData.filter((r: any) => r.status === "Waiting").length,
-            total: resultsData.length
+            selected: resultsData.filter((r: any) => r.status?.toLowerCase().includes("provisionally selected")).length,
+            waiting: resultsData.filter((r: any) => r.status?.toLowerCase().includes("waiting")).length,
+            total: totalData?.total_candidates || resultsData.length
           })
         }
       } catch (err) {
@@ -261,8 +269,11 @@ export default function CheckResultPage() {
               <span className="inline-flex items-center gap-6">
                 {settings.show_stats_in_banner && (
                   <span className="inline-flex items-center gap-6 mr-6">
+                    <span className="flex items-center gap-2 bg-[#006a4e]/10 dark:bg-emerald-950/30 px-3 py-1 rounded-full">
+                      <span className="font-bold text-[#006a4e] dark:text-emerald-400 uppercase tracking-wide text-xs">Admission {settings.admission_year}</span>
+                    </span>
                     <span className="flex items-center gap-2">
-                      <span className="text-green-600 dark:text-green-400">Selected:</span>
+                      <span className="text-green-600 dark:text-green-400">Provisionally Selected:</span>
                       <span className="font-bold text-[#1a365d] dark:text-white text-base">{selectedCount}</span>
                     </span>
                     <span className="text-zinc-300 dark:text-zinc-700">|</span>
@@ -438,10 +449,10 @@ export default function CheckResultPage() {
                 <div
                   className="px-8 py-6 text-center"
                   style={{
-                    backgroundColor: result.status === "Selected" ? "#f0fdf4" : "#fffbeb",
+                    backgroundColor: result.status?.toLowerCase().includes("provisionally selected") ? "#f0fdf4" : "#fffbeb",
                   }}
                 >
-                  {result.status === "Selected" ? (
+                  {result.status?.toLowerCase().includes("provisionally selected") ? (
                     <CheckCircle2 className="w-14 h-14 text-green-500 mx-auto mb-3" />
                   ) : (
                     <Clock className="w-14 h-14 text-amber-500 mx-auto mb-3" />
@@ -492,11 +503,11 @@ export default function CheckResultPage() {
                     <span
                       className="inline-flex items-center gap-1.5 text-sm font-bold px-3 py-1 rounded-full"
                       style={{
-                        backgroundColor: result.status === "Selected" ? "#dcfce7" : "#fef3c7",
-                        color: result.status === "Selected" ? "#16a34a" : "#d97706",
+                        backgroundColor: result.status?.toLowerCase().includes("provisionally selected") ? "#dcfce7" : "#fef3c7",
+                        color: result.status?.toLowerCase().includes("provisionally selected") ? "#16a34a" : "#d97706",
                       }}
                     >
-                      {result.status === "Selected" ? (
+                      {result.status?.toLowerCase().includes("provisionally selected") ? (
                         <CheckCircle2 className="w-4 h-4" />
                       ) : (
                         <Clock className="w-4 h-4" />

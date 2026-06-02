@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Search, Filter, Download, ArrowUpDown, ChevronLeft, ChevronRight, FileSpreadsheet } from "lucide-react"
+import { Search, Filter, Download, ArrowUpDown, ChevronLeft, ChevronRight, FileSpreadsheet, Plus, Pencil, Trash2, Save, X, Users } from "lucide-react"
 import { PageHeader } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { toast } from "sonner"
 import { createClient } from "@/utils/supabase/client"
 
@@ -28,6 +29,25 @@ interface DBResult {
   created_at: string
 }
 
+interface YearlyCandidateTotal {
+  id: number
+  year: number
+  total_candidates: number
+}
+
+// Helper to determine badge styles based on status
+function getStatusBadgeStyle(status: string) {
+  const s = status.toLowerCase()
+  if (s.includes("provisionally") || s.includes("selected")) {
+    return { backgroundColor: "#dcfce7", color: "#16a34a" }
+  }
+  if (s.includes("waiting")) {
+    return { backgroundColor: "#fef3c7", color: "#d97706" }
+  }
+  // Default fallback
+  return { backgroundColor: "#f1f5f9", color: "#475569" }
+}
+
 export default function AdminResultsPage() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -36,6 +56,16 @@ export default function AdminResultsPage() {
   const [sortAsc, setSortAsc] = useState(true)
   const [dbResults, setDbResults] = useState<DBResult[]>([])
   const [isLoading, setIsLoading] = useState(true)
+
+  // Yearly Candidate Totals state
+  const [yearlyTotals, setYearlyTotals] = useState<YearlyCandidateTotal[]>([])
+  const [yearlyLoading, setYearlyLoading] = useState(true)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editYear, setEditYear] = useState("")
+  const [editTotal, setEditTotal] = useState("")
+  const [addMode, setAddMode] = useState(false)
+  const [newYear, setNewYear] = useState("")
+  const [newTotal, setNewTotal] = useState("")
 
   const itemsPerPage = 10
   const supabase = createClient()
@@ -66,7 +96,25 @@ export default function AdminResultsPage() {
         setIsLoading(false)
       }
     }
+
+    async function loadYearlyTotals() {
+      setYearlyLoading(true)
+      try {
+        const { data, error } = await supabase
+          .from("yearly_candidate_totals")
+          .select("*")
+          .order("year", { ascending: false })
+        if (error) throw error
+        if (data) setYearlyTotals(data)
+      } catch (e) {
+        console.error("Failed to fetch yearly totals:", e)
+      } finally {
+        setYearlyLoading(false)
+      }
+    }
+
     loadLatestResults()
+    loadYearlyTotals()
   }, [])
 
   // Handle sort toggle
@@ -96,7 +144,7 @@ export default function AdminResultsPage() {
 
     // Apply status filter
     if (statusFilter !== "all") {
-      result = result.filter((r) => r.status.toLowerCase() === statusFilter)
+      result = result.filter((r) => r.status.toLowerCase() === statusFilter.toLowerCase())
     }
 
     // Apply sorting
@@ -129,6 +177,77 @@ export default function AdminResultsPage() {
 
   const handleExport = () => {
     toast.success("Excel sheet compilation complete. Download started!")
+  }
+
+  // --- Yearly Candidate Totals CRUD ---
+  const handleAddTotal = async () => {
+    const year = parseInt(newYear)
+    const total = parseInt(newTotal)
+    if (!year || !total || total < 0) {
+      toast.error("Please enter a valid year and total.")
+      return
+    }
+    try {
+      const { data, error } = await supabase
+        .from("yearly_candidate_totals")
+        .insert({ year, total_candidates: total })
+        .select()
+        .single()
+      if (error) throw error
+      setYearlyTotals((prev) => [data, ...prev].sort((a, b) => b.year - a.year))
+      setNewYear("")
+      setNewTotal("")
+      setAddMode(false)
+      toast.success(`Added total for year ${year}.`)
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to add entry.")
+    }
+  }
+
+  const handleEditStart = (item: YearlyCandidateTotal) => {
+    setEditingId(item.id)
+    setEditYear(item.year.toString())
+    setEditTotal(item.total_candidates.toString())
+  }
+
+  const handleEditSave = async () => {
+    if (editingId === null) return
+    const year = parseInt(editYear)
+    const total = parseInt(editTotal)
+    if (!year || !total || total < 0) {
+      toast.error("Please enter valid values.")
+      return
+    }
+    try {
+      const { error } = await supabase
+        .from("yearly_candidate_totals")
+        .update({ year, total_candidates: total })
+        .eq("id", editingId)
+      if (error) throw error
+      setYearlyTotals((prev) =>
+        prev.map((item) =>
+          item.id === editingId ? { ...item, year, total_candidates: total } : item
+        ).sort((a, b) => b.year - a.year)
+      )
+      setEditingId(null)
+      toast.success(`Updated entry for year ${year}.`)
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update entry.")
+    }
+  }
+
+  const handleDelete = async (item: YearlyCandidateTotal) => {
+    try {
+      const { error } = await supabase
+        .from("yearly_candidate_totals")
+        .delete()
+        .eq("id", item.id)
+      if (error) throw error
+      setYearlyTotals((prev) => prev.filter((t) => t.id !== item.id))
+      toast.success(`Deleted entry for year ${item.year}.`)
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete entry.")
+    }
   }
 
   return (
@@ -175,12 +294,12 @@ export default function AdminResultsPage() {
               setCurrentPage(1) // Reset page on filter change
             }}
           >
-            <SelectTrigger className="w-40 h-11 rounded-xl bg-zinc-50/50 dark:bg-zinc-800 border-zinc-200">
+            <SelectTrigger className="w-48 h-11 rounded-xl bg-zinc-50/50 dark:bg-zinc-800 border-zinc-200">
               <SelectValue placeholder="All Status" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="selected">Selected</SelectItem>
+              <SelectItem value="provisionally selected">Provisionally Selected</SelectItem>
               <SelectItem value="waiting">Waiting</SelectItem>
             </SelectContent>
           </Select>
@@ -235,11 +354,8 @@ export default function AdminResultsPage() {
                   <TableCell className="text-[#4a5568] dark:text-zinc-400 text-sm">{row.year}</TableCell>
                   <TableCell>
                     <span
-                      className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full`}
-                      style={{
-                        backgroundColor: row.status === "Selected" ? "#dcfce7" : "#fef3c7",
-                        color: row.status === "Selected" ? "#16a34a" : "#d97706",
-                      }}
+                      className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full"
+                      style={getStatusBadgeStyle(row.status)}
                     >
                       {row.status}
                     </span>
@@ -307,6 +423,186 @@ export default function AdminResultsPage() {
           </div>
         )}
       </div>
+
+      {/* ── Yearly Candidate Totals Management ── */}
+      <Card className="bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div className="space-y-0.5">
+            <CardTitle className="text-base sm:text-lg font-bold text-[#1a365d] dark:text-zinc-50 flex items-center gap-2">
+              <Users className="w-5 h-5 text-blue-500" />
+              Total Applied Candidates (Yearly)
+            </CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
+              Manage total applied candidate counts per admission year. This data is displayed on the public result page banner.
+            </CardDescription>
+          </div>
+          {!addMode && (
+            <Button
+              onClick={() => setAddMode(true)}
+              size="sm"
+              className="bg-[#006a4e] hover:bg-[#005a40] text-white rounded-xl flex items-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              Add Year
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-xl border border-zinc-100 dark:border-zinc-800 overflow-hidden">
+            <Table>
+              <TableHeader className="bg-zinc-50/50 dark:bg-zinc-900/50">
+                <TableRow>
+                  <TableHead className="font-bold text-[#1a365d] dark:text-zinc-200">Year</TableHead>
+                  <TableHead className="font-bold text-[#1a365d] dark:text-zinc-200">Total Candidates Applied</TableHead>
+                  <TableHead className="font-bold text-[#1a365d] dark:text-zinc-200 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {/* Add new row */}
+                {addMode && (
+                  <TableRow key="add-new-row" className="bg-green-50/50 dark:bg-green-950/10">
+                    <TableCell>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 2025"
+                        value={newYear}
+                        onChange={(e) => setNewYear(e.target.value)}
+                        className="h-9 w-28 rounded-lg bg-white dark:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-[#006a4e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 15000"
+                        value={newTotal}
+                        onChange={(e) => setNewTotal(e.target.value)}
+                        className="h-9 w-36 rounded-lg bg-white dark:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-[#006a4e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          onClick={handleAddTotal}
+                          className="bg-[#006a4e] hover:bg-[#005a40] text-white rounded-lg h-8 px-3 cursor-pointer"
+                        >
+                          <Save className="w-3.5 h-3.5 mr-1" />
+                          Save
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setAddMode(false); setNewYear(""); setNewTotal("") }}
+                          className="rounded-lg h-8 px-3 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+
+                {yearlyLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="h-24 text-center text-[#4a5568] dark:text-zinc-400">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-[#006a4e] border-t-transparent rounded-full animate-spin" />
+                        Loading yearly data...
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : yearlyTotals.length > 0 ? (
+                  yearlyTotals.map((item) => (
+                    <TableRow key={item.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-950/20 group">
+                      {editingId === item.id ? (
+                        <>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              value={editYear}
+                              onChange={(e) => setEditYear(e.target.value)}
+                              className="h-9 w-28 rounded-lg bg-white dark:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-[#006a4e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              value={editTotal}
+                              onChange={(e) => setEditTotal(e.target.value)}
+                              className="h-9 w-36 rounded-lg bg-white dark:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-[#006a4e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                size="sm"
+                                onClick={handleEditSave}
+                                className="bg-[#006a4e] hover:bg-[#005a40] text-white rounded-lg h-8 px-3 cursor-pointer"
+                              >
+                                <Save className="w-3.5 h-3.5 mr-1" />
+                                Save
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setEditingId(null)}
+                                className="rounded-lg h-8 px-3 cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </>
+                      ) : (
+                        <>
+                          <TableCell className="font-mono font-bold text-[#1a365d] dark:text-zinc-50 text-base">
+                            {item.year}
+                          </TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center gap-1.5 text-sm font-bold text-[#1a365d] dark:text-zinc-50">
+                              <span className="inline-flex items-center justify-center w-2 h-2 rounded-full bg-blue-500" />
+                              {item.total_candidates.toLocaleString()}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEditStart(item)}
+                                className="rounded-lg h-8 px-2.5 text-blue-600 border-blue-200 bg-blue-50 hover:bg-blue-100 hover:text-blue-700 dark:bg-blue-950/30 dark:border-blue-900 dark:text-blue-400 dark:hover:bg-blue-900/50 cursor-pointer"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDelete(item)}
+                                className="rounded-lg h-8 px-2.5 text-red-600 border-red-200 bg-red-50 hover:bg-red-100 hover:text-red-700 dark:bg-red-950/30 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/50 cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </>
+                      )}
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={3} className="h-24 text-center text-[#4a5568] dark:text-zinc-400">
+                      <div className="flex flex-col items-center gap-2">
+                        <Users className="w-8 h-8 text-zinc-300" />
+                        <span>No yearly candidate data found. Click &quot;Add Year&quot; to create an entry.</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
