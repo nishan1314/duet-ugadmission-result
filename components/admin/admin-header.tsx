@@ -31,6 +31,7 @@ const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/results", label: "Results", icon: FileText },
+  { href: "/admin/upload", label: "Upload", icon: Upload },
 ]
 
 export function AdminHeader() {
