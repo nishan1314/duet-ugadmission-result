@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Settings, Eye, Volume2, ShieldAlert, Save } from "lucide-react"
+import { Settings, Eye, Volume2, ShieldAlert, Save, X, Plus, Pencil } from "lucide-react"
 import { PageHeader } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,7 +22,10 @@ export default function AdminSettingsPage() {
   const [publishResult, setPublishResult] = useState(true)
   const [showAnnounce, setShowAnnounce] = useState(true)
   const [showStatsInBanner, setShowStatsInBanner] = useState(false)
-  const [announceText, setAnnounceText] = useState("")
+  const [notices, setNotices] = useState<string[]>([])
+  const [newNotice, setNewNotice] = useState("")
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editingText, setEditingText] = useState("")
   const [maintenance, setMaintenance] = useState(false)
   const [maintenanceMsg, setMaintenanceMsg] = useState("")
 
@@ -48,7 +51,7 @@ export default function AdminSettingsPage() {
             else if (row.key === "result_published") setPublishResult(val === "true")
             else if (row.key === "show_announcement") setShowAnnounce(val === "true")
             else if (row.key === "show_stats_in_banner") setShowStatsInBanner(val === "true")
-            else if (row.key === "announcement_text") setAnnounceText(val)
+            else if (row.key === "announcement_text") setNotices(val ? val.split("\n").filter(t => t.trim() !== "") : [])
             else if (row.key === "maintenance_mode") setMaintenance(val === "true")
             else if (row.key === "maintenance_message") setMaintenanceMsg(val)
           })
@@ -75,7 +78,7 @@ export default function AdminSettingsPage() {
         { key: "result_published", value: String(publishResult), updated_by: user?.id },
         { key: "show_announcement", value: String(showAnnounce), updated_by: user?.id },
         { key: "show_stats_in_banner", value: String(showStatsInBanner), updated_by: user?.id },
-        { key: "announcement_text", value: announceText, updated_by: user?.id },
+        { key: "announcement_text", value: notices.join("\n"), updated_by: user?.id },
         { key: "maintenance_mode", value: String(maintenance), updated_by: user?.id },
         { key: "maintenance_message", value: maintenanceMsg, updated_by: user?.id },
       ]
@@ -230,22 +233,129 @@ export default function AdminSettingsPage() {
                   <Switch checked={showStatsInBanner} onCheckedChange={setShowStatsInBanner} />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="flex flex-col gap-1">
-                    <Label htmlFor="announce-desc" className="text-sm font-semibold text-[#1a365d] dark:text-zinc-300">
+                    <Label className="text-sm font-semibold text-[#1a365d] dark:text-zinc-300">
                       Notice Headline(s)
                     </Label>
                     <p className="text-xs text-[#4a5568] dark:text-zinc-400">
-                      Enter multiple notices by separating them with a new line (Enter).
+                      Add multiple notices. They will scroll in the banner.
                     </p>
                   </div>
-                  <Textarea
-                    id="announce-desc"
-                    value={announceText}
-                    onChange={(e) => setAnnounceText(e.target.value)}
-                    className="rounded-xl bg-zinc-50/50 dark:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-[#006a4e] h-24 resize-none"
-                    placeholder="Enter notice text here..."
-                  />
+
+                  {/* List of current notices */}
+                  {notices.length > 0 && (
+                    <div className="space-y-2">
+                      {notices.map((notice, index) => (
+                        <div key={index} className="flex items-center justify-between p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-sm">
+                          {editingIndex === index ? (
+                            <div className="flex items-center gap-2 flex-1 mr-2">
+                              <Input
+                                value={editingText}
+                                onChange={(e) => setEditingText(e.target.value)}
+                                className="h-8 text-sm flex-1 rounded-lg bg-zinc-50 dark:bg-zinc-900 focus-visible:ring-1"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault()
+                                    if (editingText.trim()) {
+                                      const newNotices = [...notices]
+                                      newNotices[index] = editingText.trim()
+                                      setNotices(newNotices)
+                                      setEditingIndex(null)
+                                    }
+                                  }
+                                }}
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => {
+                                  if (editingText.trim()) {
+                                    const newNotices = [...notices]
+                                    newNotices[index] = editingText.trim()
+                                    setNotices(newNotices)
+                                    setEditingIndex(null)
+                                  }
+                                }}
+                                className="h-8 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg cursor-pointer"
+                              >
+                                Save
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setEditingIndex(null)}
+                                className="h-8 px-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 cursor-pointer"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
+                              <span className="text-sm text-[#1a365d] dark:text-zinc-50 flex-1 pr-2">{notice}</span>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingIndex(index)
+                                    setEditingText(notice)
+                                  }}
+                                  className="h-7 px-2 text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 cursor-pointer"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button 
+                                  type="button"
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => setNotices(notices.filter((_, i) => i !== index))}
+                                  className="h-7 px-2 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add new notice */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <Input
+                      value={newNotice}
+                      onChange={(e) => setNewNotice(e.target.value)}
+                      placeholder="Enter new notice text..."
+                      className="h-11 flex-1 rounded-xl bg-zinc-50/50 dark:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-[#006a4e]"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          if (newNotice.trim()) {
+                            setNotices([...notices, newNotice.trim()])
+                            setNewNotice("")
+                          }
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        if (newNotice.trim()) {
+                          setNotices([...notices, newNotice.trim()])
+                          setNewNotice("")
+                        }
+                      }}
+                      className="h-11 px-4 bg-[#006a4e] hover:bg-[#005a40] text-white rounded-xl flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}

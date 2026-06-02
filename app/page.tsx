@@ -77,6 +77,7 @@ type ResultData = {
 } | null
 
 export default function CheckResultPage() {
+  const [isPageLoading, setIsPageLoading] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [applicantId, setApplicantId] = useState("")
   const [showModal, setShowModal] = useState(false)
@@ -162,6 +163,8 @@ export default function CheckResultPage() {
         }
       } catch (err) {
         console.error("Error loading settings from DB:", err)
+      } finally {
+        setIsPageLoading(false)
       }
     }
 
@@ -217,6 +220,28 @@ export default function CheckResultPage() {
     setShowModal(false)
     setResult(null)
     setNotFound(false)
+  }
+
+  // ── Render Full Site Loading Screen ──
+  if (isPageLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f0f4fb] dark:bg-zinc-950 px-4">
+        <div className="relative w-24 h-24 mb-6 drop-shadow-md">
+          <Image
+            src="/images/duet-logo.png"
+            alt="DUET Logo"
+            fill
+            sizes="96px"
+            className="object-contain animate-pulse"
+            priority
+          />
+        </div>
+        <div className="w-8 h-8 border-4 border-[#006a4e] border-t-transparent rounded-full animate-spin"></div>
+        <p className="mt-4 text-sm font-semibold text-[#1a365d] dark:text-zinc-400 tracking-wide uppercase">
+          Initializing Portal
+        </p>
+      </div>
+    )
   }
 
   // ── Render Maintenance Screen ──
