@@ -16,6 +16,7 @@ import { createClient } from "@/utils/supabase/client"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import Papa from "papaparse"
+import { DEPARTMENTS } from "@/lib/constants"
 
 type ResultData = {
   applicant_id: string
@@ -43,6 +44,7 @@ export default function CheckResultPage() {
   const [groupResults, setGroupResults] = useState<NonNullable<ResultData>[]>([])
   const [showGroupModal, setShowGroupModal] = useState(false)
   const [groupNotFound, setGroupNotFound] = useState<string[]>([])
+  const [activeTab, setActiveTab] = useState<"individual" | "group">("individual")
 
   // Portal Config Settings State
   const [settings, setSettings] = useState({
@@ -267,61 +269,178 @@ export default function CheckResultPage() {
     })
   }
 
+  // Helper: convert full department name to short abbreviation
+  const getDeptAbbr = (fullName: string): string => {
+    const entry = Object.entries(DEPARTMENTS).find(([, name]) => name === fullName)
+    return entry ? entry[0] : fullName
+  }
+
   const downloadGroupPDF = () => {
     const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
     
-    doc.setFontSize(18)
-    doc.text(`Undergraduate Admission Result - ${settings.admission_year}`, 14, 22)
-    doc.setFontSize(11)
+    // ── Title ──
+    doc.setFontSize(16)
+    doc.setFont("helvetica", "bold")
+    doc.setTextColor(26, 54, 93) // #1a365d
+    doc.text(`Undergraduate Admission Result - ${settings.admission_year}`, 14, 20)
+    
+    doc.setFontSize(10)
+    doc.setFont("helvetica", "normal")
     doc.setTextColor(100, 100, 100)
-    doc.text(`Group Wise Result | DUET`, 14, 30)
+    doc.text(`Group Wise Result | Dhaka University of Engineering & Technology, Gazipur`, 14, 27)
     
-    let selectedCount = 0;
-    let waitingCount = 0;
+    // ── Divider line ──
+    doc.setDrawColor(0, 106, 78)
+    doc.setLineWidth(0.8)
+    doc.line(14, 30, pageWidth - 14, 30)
+    
+    // ── Compute stats ──
+    let pdfSelectedCount = 0;
+    let pdfWaitingCount = 0;
+    const selectedDeptStats: Record<string, number> = {};
+    const waitingDeptStats: Record<string, number> = {};
+
     groupResults.forEach(r => {
+      const dept = r.department ? getDeptAbbr(r.department) : "N/A";
       if (r.status?.toLowerCase().includes("provisionally selected")) {
-        selectedCount++;
+        pdfSelectedCount++;
+        selectedDeptStats[dept] = (selectedDeptStats[dept] || 0) + 1;
       } else if (r.status?.toLowerCase().includes("waiting")) {
-        waitingCount++;
+        pdfWaitingCount++;
+        waitingDeptStats[dept] = (waitingDeptStats[dept] || 0) + 1;
       }
     });
 
+    const selectedDeptStr = Object.entries(selectedDeptStats)
+      .sort((a, b) => b[1] - a[1])
+      .map(([dept, count]) => `${dept}: ${count}`)
+      .join(" | ");
+
+    const waitingDeptStr = Object.entries(waitingDeptStats)
+      .sort((a, b) => b[1] - a[1])
+      .map(([dept, count]) => `${dept}: ${count}`)
+      .join(" | ");
+
+    // ── Summary row ──
+    let cursorY = 36;
     doc.setFontSize(10)
     doc.setFont("helvetica", "bold")
     
-    doc.setTextColor(0, 0, 0)
-    doc.text(`Total Found: ${groupResults.length}`, 14, 38)
+    doc.setTextColor(26, 54, 93)
+    doc.text(`Total Students: ${groupResults.length}`, 14, cursorY)
     
     doc.setTextColor(22, 163, 74) // Green
-    doc.text(`Selected: ${selectedCount}`, 60, 38)
+    doc.text(`Selected: ${pdfSelectedCount}`, 65, cursorY)
     
     doc.setTextColor(217, 119, 6) // Amber
-    doc.text(`Waiting: ${waitingCount}`, 100, 38)
+    doc.text(`In Waiting List: ${pdfWaitingCount}`, 110, cursorY)
     
-    doc.setTextColor(0, 0, 0) // Reset
+    cursorY += 7;
+
+    // ── Selected dept breakdown (green) ──
+    if (selectedDeptStr) {
+      doc.setFontSize(9)
+      doc.setFont("helvetica", "bold")
+      doc.setTextColor(22, 163, 74)
+      doc.text("Selected", 14, cursorY)
+      doc.setFont("helvetica", "normal")
+      doc.setTextColor(60, 60, 60)
+      doc.text(`- ${selectedDeptStr}`, 14 + doc.getTextWidth("Selected") + 2, cursorY)
+      const selLines = doc.splitTextToSize(`Selected - ${selectedDeptStr}`, 180)
+      cursorY += selLines.length * 4.5 + 2
+    }
+
+    // ── Waiting dept breakdown (amber) ──
+    if (waitingDeptStr) {
+      doc.setFontSize(9)
+      doc.setFont("helvetica", "bold")
+      doc.setTextColor(217, 119, 6)
+      doc.text("Waiting", 14, cursorY)
+      doc.setFont("helvetica", "normal")
+      doc.setTextColor(60, 60, 60)
+      doc.text(`- ${waitingDeptStr}`, 14 + doc.getTextWidth("Waiting") + 2, cursorY)
+      const waitLines = doc.splitTextToSize(`Waiting - ${waitingDeptStr}`, 180)
+      cursorY += waitLines.length * 4.5 + 2
+    }
+
+    // ── Thin divider before table ──
+    cursorY += 1
+    doc.setDrawColor(200, 200, 200)
+    doc.setLineWidth(0.3)
+    doc.line(14, cursorY, pageWidth - 14, cursorY)
+    cursorY += 4
+    
+    doc.setTextColor(0, 0, 0)
     doc.setFont("helvetica", "normal")
     
-    const tableColumn = ["Applicant ID", "Name", "Department", "Status"]
+    const tableColumn = ["#", "Applicant ID", "Name", "Department", "Status"]
     const tableRows: any[] = []
     
-    groupResults.forEach(res => {
-      const rowData = [
+    groupResults.forEach((res, idx) => {
+      tableRows.push([
+        (idx + 1).toString(),
         res.applicant_id,
         res.applicant_name,
-        res.department,
+        getDeptAbbr(res.department),
         res.status
-      ]
-      tableRows.push(rowData)
+      ])
     })
     
     autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
-      startY: 45,
-      theme: 'grid',
-      styles: { fontSize: 10 },
-      headStyles: { fillColor: [0, 106, 78] }
+      startY: cursorY,
+      theme: 'striped',
+      styles: {
+        fontSize: 9,
+        cellPadding: 3,
+        lineColor: [220, 220, 220],
+        lineWidth: 0.2,
+        textColor: [40, 40, 40],
+      },
+      headStyles: {
+        fillColor: [0, 106, 78],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 9.5,
+        halign: 'left'
+      },
+      alternateRowStyles: {
+        fillColor: [245, 250, 248]
+      },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 12 },  // #
+        1: { cellWidth: 30 },                     // Applicant ID
+        4: { fontStyle: 'bold' }                   // Status
+      },
+      didParseCell: (data: any) => {
+        // Color-code the Status column
+        if (data.section === 'body' && data.column.index === 4) {
+          const val = String(data.cell.raw).toLowerCase();
+          if (val.includes('provisionally selected')) {
+            data.cell.styles.textColor = [22, 163, 74]; // green
+          } else if (val.includes('waiting')) {
+            data.cell.styles.textColor = [217, 119, 6]; // amber
+          }
+        }
+      },
+      margin: { left: 14, right: 14 }
     })
+    
+    // ── Footer on each page ──
+    const totalPages = (doc as any).internal.getNumberOfPages()
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i)
+      doc.setFontSize(7)
+      doc.setTextColor(160, 160, 160)
+      doc.text(
+        `Generated from DUET Admission Portal  •  Page ${i} of ${totalPages}`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 8,
+        { align: 'center' }
+      )
+    }
     
     doc.save(`duet_group_results_${settings.admission_year}.pdf`)
   }
@@ -474,14 +593,46 @@ export default function CheckResultPage() {
                 </h2>
               </div>
               
-              <Tabs defaultValue="individual" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-8 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl h-auto">
-                  <TabsTrigger value="individual" className="rounded-lg py-2.5 text-sm font-semibold">Individual</TabsTrigger>
-                  <TabsTrigger value="group" className="rounded-lg py-2.5 text-sm font-semibold">Group (Multiple)</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="individual" className="mt-0">
-                  <div className="h-[200px] flex flex-col justify-center">
+              {/* Custom Tab Buttons */}
+              <div className="grid grid-cols-2 gap-0 mb-8 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("individual")}
+                  className={`relative rounded-lg py-2.5 text-sm font-semibold transition-all duration-300 cursor-pointer overflow-hidden ${
+                    activeTab === "individual"
+                      ? "bg-white dark:bg-zinc-700 text-[#1a365d] dark:text-zinc-50 shadow-sm"
+                      : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  }`}
+                >
+                  {activeTab === "individual" && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[60%] bg-red-500 rounded-r-full transition-all duration-300" />
+                  )}
+                  Individual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("group")}
+                  className={`relative rounded-lg py-2.5 text-sm font-semibold transition-all duration-300 cursor-pointer overflow-hidden ${
+                    activeTab === "group"
+                      ? "bg-white dark:bg-zinc-700 text-[#1a365d] dark:text-zinc-50 shadow-sm"
+                      : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  }`}
+                >
+                  {activeTab === "group" && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[60%] bg-red-500 rounded-r-full transition-all duration-300" />
+                  )}
+                  Multiple
+                </button>
+              </div>
+
+              {/* Sliding Tab Content */}
+              <div className="relative h-[200px] overflow-hidden">
+                <div
+                  className="flex transition-transform duration-400 ease-in-out h-full"
+                  style={{ transform: activeTab === "individual" ? "translateX(0%)" : "translateX(-100%)" }}
+                >
+                  {/* Individual Panel */}
+                  <div className="w-full flex-shrink-0 flex flex-col justify-center">
                     <form onSubmit={handleSubmit} className="space-y-6 w-full">
                       <div className="space-y-2">
                         <Label htmlFor="applicantId" className="text-base font-semibold text-[#1a365d] dark:text-zinc-300">
@@ -537,10 +688,9 @@ export default function CheckResultPage() {
                       </div>
                     </form>
                   </div>
-                </TabsContent>
-                
-                <TabsContent value="group" className="mt-0">
-                  <div className="h-[200px] flex flex-col justify-center">
+
+                  {/* Group/Multiple Panel */}
+                  <div className="w-full flex-shrink-0 flex flex-col justify-center">
                     <form onSubmit={handleGroupSubmit} className="space-y-6 w-full">
                       <div className="space-y-2">
                         <Label className="text-base font-semibold text-[#1a365d] dark:text-zinc-300">
@@ -587,14 +737,10 @@ export default function CheckResultPage() {
                           </p>
                         </div>
                       ) : null}
-
-                      <div className="flex justify-center pt-2">
-                        {/* Search button removed because it auto-searches on upload */}
-                      </div>
                     </form>
                   </div>
-                </TabsContent>
-              </Tabs>
+                </div>
+              </div>
             </div>
           </div>
         </div>
