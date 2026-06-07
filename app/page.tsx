@@ -336,6 +336,11 @@ export default function CheckResultPage() {
     doc.setTextColor(217, 119, 6) // Amber
     doc.text(`In Waiting List: ${pdfWaitingCount}`, 110, cursorY)
     
+    if (groupNotFound.length > 0) {
+      doc.setTextColor(220, 38, 38) // Red
+      doc.text(`Not Found: ${groupNotFound.length}`, 160, cursorY)
+    }
+    
     cursorY += 7;
 
     // ── Selected dept breakdown (green) ──
@@ -427,6 +432,64 @@ export default function CheckResultPage() {
       },
       margin: { left: 14, right: 14 }
     })
+    
+    // ── Not Found / Not Selected Section ──
+    if (groupNotFound.length > 0) {
+      const lastTableY = (doc as any).lastAutoTable?.finalY || cursorY + 20
+      let notFoundY = lastTableY + 10
+      
+      // Check if we need a new page
+      if (notFoundY > doc.internal.pageSize.getHeight() - 40) {
+        doc.addPage()
+        notFoundY = 20
+      }
+      
+      doc.setFontSize(11)
+      doc.setFont("helvetica", "bold")
+      doc.setTextColor(220, 38, 38) // Red
+      doc.text(`Not Found / Not Selected (${groupNotFound.length})`, 14, notFoundY)
+      
+      notFoundY += 2
+      doc.setDrawColor(220, 38, 38)
+      doc.setLineWidth(0.4)
+      doc.line(14, notFoundY, pageWidth - 14, notFoundY)
+      notFoundY += 4
+      
+      const notFoundRows = groupNotFound.map((id, idx) => [
+        (idx + 1).toString(),
+        id,
+        "Not Found"
+      ])
+      
+      autoTable(doc, {
+        head: [["#", "Applicant ID", "Status"]],
+        body: notFoundRows,
+        startY: notFoundY,
+        theme: 'striped',
+        styles: {
+          fontSize: 9,
+          cellPadding: 3,
+          lineColor: [220, 220, 220],
+          lineWidth: 0.2,
+          textColor: [40, 40, 40],
+        },
+        headStyles: {
+          fillColor: [220, 38, 38],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 9.5,
+          halign: 'left'
+        },
+        alternateRowStyles: {
+          fillColor: [254, 242, 242]
+        },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 12 },
+          2: { fontStyle: 'bold', textColor: [220, 38, 38] }
+        },
+        margin: { left: 14, right: 14 }
+      })
+    }
     
     // ── Footer on each page ──
     const totalPages = (doc as any).internal.getNumberOfPages()
