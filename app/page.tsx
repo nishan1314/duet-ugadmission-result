@@ -139,9 +139,12 @@ export default function CheckResultPage() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
+    setResult(null)
+    setNotFound(false)
+    setShowModal(true)
     
     // Premium loading delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 1500))
     
     const inputId = applicantId.trim()
     
@@ -174,7 +177,6 @@ export default function CheckResultPage() {
     }
 
     setIsLoading(false)
-    setShowModal(true)
   }
 
   const closeModal = () => {
@@ -652,7 +654,7 @@ export default function CheckResultPage() {
             <div className="px-8 sm:px-10 py-8 sm:py-10">
               <div className="mb-6 text-center">
                 <h2 className="text-2xl sm:text-3xl font-bold text-[#1a365d] dark:text-zinc-50 tracking-tight">
-                  Check Result
+                  Admission Result
                 </h2>
               </div>
               
@@ -708,7 +710,7 @@ export default function CheckResultPage() {
                             type="number"
                             inputMode="numeric"
                             placeholder="e.g. 10001"
-                            className="pl-12 h-12 rounded-xl border-zinc-200 dark:border-zinc-700 bg-[#f7fafc] dark:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-[#006a4e] text-base sm:text-lg text-[#1a365d] dark:text-zinc-50 placeholder:text-zinc-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="pl-12 h-12 rounded-xl border-zinc-200 dark:border-zinc-700 bg-[#f7fafc] dark:bg-zinc-800 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none text-base sm:text-lg text-[#1a365d] dark:text-zinc-50 placeholder:text-zinc-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             required
                             min={1}
                             value={applicantId}
@@ -745,7 +747,7 @@ export default function CheckResultPage() {
                               Checking...
                             </span>
                           ) : (
-                            "Check"
+                            "View Result"
                           )}
                         </Button>
                       </div>
@@ -837,129 +839,164 @@ export default function CheckResultPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 animate-in fade-in duration-200"
           onClick={closeModal}
         >
+          {isLoading ? (
+            /* ── Loading Animation: 3 bouncing green dots on transparent backdrop ── */
+            <div className="flex flex-col items-center justify-center" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-3">
+                <span className="w-4 h-4 rounded-full bg-white animate-[modalBounce_0.7s_ease-in-out_infinite]" style={{ animationDelay: '0s' }} />
+                <span className="w-4 h-4 rounded-full bg-white animate-[modalBounce_0.7s_ease-in-out_infinite]" style={{ animationDelay: '0.15s' }} />
+                <span className="w-4 h-4 rounded-full bg-white animate-[modalBounce_0.7s_ease-in-out_infinite]" style={{ animationDelay: '0.3s' }} />
+              </div>
+              <p className="mt-5 text-sm font-semibold text-white/90 tracking-wider">Please wait</p>
+            </div>
+          ) : (
           <div
-            className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 fade-in duration-300"
+            className="relative w-full max-w-lg bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 fade-in duration-300"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Close button */}
-            <button
-              onClick={closeModal}
-              className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-            >
-              <X className="w-4 h-4 text-zinc-500" />
-            </button>
-
             {result ? (
               <>
-                {/* Success / Waiting header */}
-                <div
-                  className="px-8 py-6 text-center"
-                  style={{
-                    backgroundColor: result.status?.toLowerCase().includes("provisionally selected") ? "#f0fdf4" : "#fffbeb",
-                  }}
-                >
-                  {result.status?.toLowerCase().includes("provisionally selected") ? (
-                    <CheckCircle2 className="w-14 h-14 text-green-500 mx-auto mb-3" />
-                  ) : (
-                    <Clock className="w-14 h-14 text-amber-500 mx-auto mb-3" />
-                  )}
-                  <h3 className="text-xl font-bold text-[#1a365d] dark:text-zinc-900">
+                {/* Header: Title + Close */}
+                <div className="flex items-center justify-between px-7 pt-6 pb-4">
+                  <h3 className="text-xl font-bold text-[#1a365d] dark:text-zinc-50">
                     Admission Result
                   </h3>
+                  <button
+                    onClick={closeModal}
+                    className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    <X className="w-4 h-4 text-zinc-400" />
+                  </button>
                 </div>
 
-                {/* Result details */}
-                <div className="px-8 py-6 space-y-4">
+                {/* Status Icon */}
+                <div className="flex justify-center py-5">
+                  {result.status?.toLowerCase().includes("provisionally selected") ? (
+                    <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="28" cy="28" r="26" stroke="#22c55e" strokeWidth="2.5" fill="none" />
+                      <path d="M18 28.5L24.5 35L38 21.5" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                    </svg>
+                  ) : (
+                    <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="28" cy="28" r="26" stroke="#f59e0b" strokeWidth="2.5" fill="none" />
+                      <circle cx="28" cy="28" r="2" fill="#f59e0b" />
+                      <path d="M28 18V28" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" />
+                      <path d="M28 28L34 34" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" />
+                    </svg>
+                  )}
+                </div>
+
+                {/* Result details with separated green left border accent */}
+                <div className="px-7 py-4 space-y-3">
                   {/* Applicant ID */}
-                  <div className="flex items-center justify-between py-2.5 border-b border-zinc-100 dark:border-zinc-800">
+                  <div className="flex items-center justify-between py-3 border-l-[3px] border-l-[#006a4e] pl-4">
                     <span className="text-sm font-medium text-[#4a5568] dark:text-zinc-400">Applicant ID</span>
                     <span className="text-sm font-bold text-[#1a365d] dark:text-zinc-50">{result.applicant_id}</span>
                   </div>
 
                   {/* Name */}
-                  <div className="flex items-center justify-between py-2.5 border-b border-zinc-100 dark:border-zinc-800">
+                  <div className="flex items-center justify-between py-3 border-l-[3px] border-l-[#006a4e] pl-4">
                     <span className="text-sm font-medium text-[#4a5568] dark:text-zinc-400">Name</span>
                     <span className="text-sm font-bold text-[#1a365d] dark:text-zinc-50">{result.applicant_name}</span>
                   </div>
 
                   {/* Father's Name */}
-                  <div className="flex items-center justify-between py-2.5 border-b border-zinc-100 dark:border-zinc-800">
-                    <span className="text-sm font-medium text-[#4a5568] dark:text-zinc-400">Father's Name</span>
+                  <div className="flex items-center justify-between py-3 border-l-[3px] border-l-[#006a4e] pl-4">
+                    <span className="text-sm font-medium text-[#4a5568] dark:text-zinc-400">Father&apos;s Name</span>
                     <span className="text-sm font-bold text-[#1a365d] dark:text-zinc-50">{result.fathers_name}</span>
                   </div>
 
                   {/* Department */}
-                  <div className="flex items-center justify-between py-2.5 border-b border-zinc-100 dark:border-zinc-800">
+                  <div className="flex items-center justify-between py-3 border-l-[3px] border-l-[#006a4e] pl-4">
                     <span className="text-sm font-medium text-[#4a5568] dark:text-zinc-400">Department</span>
-                    <span className="text-sm font-bold text-[#1a365d] dark:text-zinc-50 text-right max-w-[60%]">{result.department}</span>
+                    <span className="text-sm font-bold text-[#006a4e] dark:text-emerald-400 text-right max-w-[60%]">{result.department}</span>
                   </div>
-
 
                   {/* Quota (if exists) */}
                   {result.quota && (
-                    <div className="flex items-center justify-between py-2.5 border-b border-zinc-100 dark:border-zinc-800">
+                    <div className="flex items-center justify-between py-3 border-l-[3px] border-l-[#006a4e] pl-4">
                       <span className="text-sm font-medium text-[#4a5568] dark:text-zinc-400">Quota</span>
-                      <span className="text-sm font-bold text-[#6b21a8]">{result.quota}</span>
+                      <span className="text-sm font-bold text-[#6b21a8] dark:text-purple-400">{result.quota}</span>
                     </div>
                   )}
 
                   {/* Status */}
-                  <div className="flex items-center justify-between py-2.5">
+                  <div className="flex items-center justify-between py-3 border-l-[3px] border-l-zinc-300 dark:border-l-zinc-600 pl-4">
                     <span className="text-sm font-medium text-[#4a5568] dark:text-zinc-400">Status</span>
                     <span
-                      className="inline-flex items-center gap-1.5 text-sm font-bold px-3 py-1 rounded-full capitalize"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-md capitalize"
                       style={{
                         backgroundColor: result.status?.toLowerCase().includes("provisionally selected") ? "#dcfce7" : "#fef3c7",
                         color: result.status?.toLowerCase().includes("provisionally selected") ? "#16a34a" : "#d97706",
                       }}
                     >
-                      {result.status?.toLowerCase().includes("provisionally selected") ? (
-                        <CheckCircle2 className="w-4 h-4" />
-                      ) : (
-                        <Clock className="w-4 h-4" />
-                      )}
                       {result.status}
                     </span>
                   </div>
                 </div>
 
                 {/* Close action */}
-                <div className="px-8 pb-6">
-                  <Button
+                <div className="flex justify-center py-5 border-t border-zinc-100 dark:border-zinc-800 mt-2">
+                  <button
                     onClick={closeModal}
-                    className="w-full h-11 rounded-xl bg-[#006a4e] hover:bg-[#005a40] text-white font-semibold text-sm tracking-wide transition-all"
+                    className="text-sm font-bold text-[#1a365d] dark:text-zinc-300 hover:text-[#006a4e] dark:hover:text-emerald-400 tracking-wide transition-colors cursor-pointer"
                   >
                     Close
-                  </Button>
+                  </button>
                 </div>
               </>
             ) : notFound ? (
               <>
-                {/* Not Found */}
-                <div className="px-8 py-6 text-center bg-red-50 dark:bg-red-950/30">
-                  <AlertTriangle className="w-14 h-14 text-red-400 mx-auto mb-3" />
+                {/* Header: Title + Close */}
+                <div className="flex items-center justify-between px-7 pt-6 pb-4">
                   <h3 className="text-xl font-bold text-[#1a365d] dark:text-zinc-50">
-                    Result Not Found
+                    Admission Result
                   </h3>
+                  <button
+                    onClick={closeModal}
+                    className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    <X className="w-4 h-4 text-zinc-400" />
+                  </button>
                 </div>
 
-                <div className="px-8 py-6 text-center">
-                  <p className="text-sm text-[#4a5568] dark:text-zinc-400 leading-relaxed">
-                    No result was found for Applicant ID <span className="font-bold text-[#1a365d] dark:text-zinc-50">{applicantId}</span>. Please double-check your ID and try again.
+                {/* Not Found Icon */}
+                <div className="flex justify-center py-4">
+                  <div className="w-16 h-16 rounded-full border-[3px] border-red-400 flex items-center justify-center">
+                    <AlertTriangle className="w-10 h-10 text-red-400" />
+                  </div>
+                </div>
+
+                {/* Not Found Message */}
+                <div className="px-7 py-4">
+                  <div className="flex items-center justify-between py-3.5 border-l-[3px] border-l-red-400 pl-4">
+                    <span className="text-sm font-medium text-[#4a5568] dark:text-zinc-400">Applicant ID</span>
+                    <span className="text-sm font-bold text-[#1a365d] dark:text-zinc-50">{applicantId}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-3.5 border-l-[3px] border-l-red-400 pl-4">
+                    <span className="text-sm font-medium text-[#4a5568] dark:text-zinc-400">Status</span>
+                    <span className="inline-flex items-center text-xs font-bold px-3 py-1 rounded-md bg-red-50 dark:bg-red-950/30 text-red-500">
+                      Not Found
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#4a5568] dark:text-zinc-500 leading-relaxed mt-4 text-center">
+                    Please double-check your Applicant ID and try again.
                   </p>
                 </div>
 
-                <div className="px-8 pb-6">
-                  <Button
+                {/* Close action */}
+                <div className="flex justify-center py-5 border-t border-zinc-100 dark:border-zinc-800 mt-2">
+                  <button
                     onClick={closeModal}
-                    className="w-full h-11 rounded-xl bg-[#006a4e] hover:bg-[#005a40] text-white font-semibold text-sm tracking-wide transition-all"
+                    className="text-sm font-bold text-[#1a365d] dark:text-zinc-300 hover:text-[#006a4e] dark:hover:text-emerald-400 tracking-wide transition-colors cursor-pointer"
                   >
                     Try Again
-                  </Button>
+                  </button>
                 </div>
               </>
             ) : null}
           </div>
+          )}
         </div>
       )}
 

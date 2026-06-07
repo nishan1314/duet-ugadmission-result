@@ -153,3 +153,12 @@
 .animate-marquee:hover, .animate-marquee-linear:hover {
   animation-play-state: paused;
 }
+
+@keyframes modalBounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
