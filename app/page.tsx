@@ -615,7 +615,7 @@ export default function CheckResultPage() {
 
       {/* ── TOP: Info Panel ── */}
       <section className="flex-shrink-0 w-full bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-800">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-col sm:flex-row items-center justify-center text-center sm:text-left gap-3 sm:gap-5">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-col sm:flex-row items-center justify-center text-center sm:text-left gap-3 sm:gap-5" style={{ transform: 'scale(0.9)' }}>
 
           {/* Logo */}
           <div className="relative w-16 h-16 sm:w-24 sm:h-24 flex-shrink-0 drop-shadow-md hover:scale-105 transition-transform duration-300">
@@ -644,7 +644,7 @@ export default function CheckResultPage() {
       </section>
 
       {/* ── MIDDLE: Stats + Form ── */}
-      <section className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-4 gap-4 overflow-hidden">
+      <section className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-4 gap-4 overflow-hidden" style={{ transform: 'scale(0.9)' }}>
 
 
 
